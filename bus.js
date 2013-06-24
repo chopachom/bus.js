@@ -17,7 +17,15 @@
 		return p1 + '.' + p2;
 	};
 
-	var get = function (obj, path) {
+	/**
+	 *
+	 * @param obj Root object
+	 * @param path Attribute path e.g. 'user.profile.email'
+	 * @param {Boolean} [_wrap=true] Whether to wrap object or not
+	 * @returns {*}
+	 */
+	var get = function (obj, path, _wrap) {
+		if(_wrap === void 0) _wrap = true;
 		var paths = splitPath(path),
 			acc = obj,
 			p;
@@ -26,6 +34,7 @@
 			acc = acc[path];
 			if (!acc) return void 0;
 		}
+		if(typeof acc === 'object' && _wrap) wrap(acc);
 		return acc
 	};
 
@@ -40,7 +49,7 @@
 			acc = acc[attrName];
 		}
 		acc[paths[paths.length - 1]] = value;
-		getBus(obj).trigger('change:'+path, value);
+		getBus(obj).trigger('change', path, [value]);
 		// iterate over all listeners
 		// if their name starts with the given path
 		// try to `get` a subpath on the object
@@ -48,23 +57,34 @@
 		var o,p;
 		for(p in getBus(obj)._listeners){
 			if(p.indexOf(path) == 0 && p !== path ){
-				o = get(obj, p);
-				if(o){
-					getBus(obj).trigger('change:'+p, o);
-				}
+				o = get(obj, p, false);
+				if(o)	getBus(obj).trigger('change', p, [o]);
 			}
 		}
 		return value
 	};
 
 	var on = function(obj, eventString, callback, context){
-		getBus(obj).on(eventString, callback, context);
+		var splitted = eventString.split(':'),
+			event = splitted[0],
+			path = splitted[1];
+		getBus(obj).on(event, path, callback, context);
 	};
+
 	var off = function(obj, eventString, callback, context){
-		getBus(obj).off(eventString, callback, context);
+		var splitted = eventString.split(':'),
+			event = splitted[0],
+			path = splitted[1];
+		getBus(obj).off(event, path, callback, context);
 	};
-	var trigger = function(obj, eventString, value){
-		getBus(obj).trigger(eventString, value);
+
+	var trigger = function(obj, eventString){
+		var splitted = eventString.split(':'),
+			event = splitted[0],
+			path = splitted[1],
+			args = [].splice.call(arguments, 2),
+			bus = getBus(obj);
+		bus.trigger.call(bus, event, path, args);
 	};
 
 	var getPathsTree = function (path) {
@@ -80,9 +100,14 @@
 	};
 
 	var getBus = function(obj){
-		return obj.__bus__ || (Object.defineProperty(obj, '__bus__', {
+		return wrap(obj).__bus__;
+	};
+
+	var wrap = function(obj){
+		obj.__bus__ || (Object.defineProperty(obj, '__bus__', {
 			value: new Bus
-		})).__bus__
+		}));
+		return obj;
 	};
 
 	var Bus = function () {
@@ -98,10 +123,7 @@
 		this._listeners = {};
 	};
 	(function () {
-		this.on = function (eventString, listener, context) {
-			var splitted = eventString.split(':'),
-				event = splitted[0],
-				path = splitted[1];
+		this.on = function (event, path, listener, context) {
 			context || (context = this);
 			this._listeners[path] || (this._listeners[path] = {});
 			this._listeners[path][event] || (this._listeners[path][event] = {listeners: [], contexts: []});
@@ -116,14 +138,10 @@
 			listenersContexts.push(context)
 		};
 		this.once = function () {};
-		this.off = function (eventString, listener, context) {
-			var splitted = eventString.split(':'),
-				eventName = splitted[0],
-				path = splitted[1],
-				subPath = path + '.',
+		this.off = function (eventName, path, listener, context) {
+			var subPath = path + '.',
 				event,
 				events;
-			//TODO: Simplify this shit
 			for(var p in this._listeners){
 				events = this._listeners[p];
 				// iterate over paths that start only with given path
@@ -132,17 +150,17 @@
 					if(e !== eventName) continue;
 					event = events[e];
 					if(listener || context){
-						for(var i= 0, splices=0; i<event.listeners.length+splices;i++){
+						for(var i=0, splices=0, j=0; i<event.listeners.length+splices; i++, j=i-splices){
 							if(listener && context){
-								if(context === event.contexts[i-splices] && event.listeners[i-splices] === listener){
-									event.listeners.splice(i-splices, 1);
-									event.contexts.splice(i-splices, 1);
+								if(context === event.contexts[j] && event.listeners[j] === listener){
+									event.listeners.splice(j, 1);
+									event.contexts.splice(j, 1);
 									splices++;
 									break
 								}
-							} else if(context === event.contexts[i-splices] || event.listeners[i-splices] === listener){
-								event.listeners.splice(i-splices, 1);
-								event.contexts.splice(i-splices, 1);
+							} else if(context === event.contexts[j] || event.listeners[j] === listener){
+								event.listeners.splice(j, 1);
+								event.contexts.splice(j, 1);
 								splices++;
 							}
 						}
@@ -153,12 +171,8 @@
 				}
 			}
 		};
-		this.trigger = function (eventString) {
-			var args = [].splice.call(arguments, 1),
-				splitted = eventString.split(':'),
-				event = splitted[0],
-				path = splitted[1],
-				pathsToWalk = getPathsTree(path);
+		this.trigger = function (event, path, args) {
+			var pathsToWalk = getPathsTree(path);
 			for (var p in pathsToWalk) {
 				this._triggerCallbacks(pathsToWalk[p], event, args)
 			}

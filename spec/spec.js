@@ -47,7 +47,7 @@ describe("Bus", function(){
 	describe('on', function(){
 		it('subscribe and fire', function(){
 			var bus = new Bus.Bus;
-			var context1 = {her:'monda'};
+			var context1 = {foo:'bar'};
 			var listener1 = jasmine.createSpy('listener1').andCallFake(function(number){
 				console.log('listener1', number, this)
 			});
@@ -55,11 +55,11 @@ describe("Bus", function(){
 				console.log('listener2', number, this)
 			});
 
-			bus.on('change:her.monda.anal', listener1, context1);
-			bus.on('change:her.monda.anal', listener2, context1);
-			bus.on('change:her.monda.anal', listener2);
+			bus.on('change', 'foo.bar.baz', listener1, context1);
+			bus.on('change', 'foo.bar.baz', listener2, context1);
+			bus.on('change', 'foo.bar.baz', listener2);
 
-			bus.trigger('change:her.monda.anal.trololo.ololo', 41);
+			bus.trigger('change', 'foo.bar.baz.trololo.ololo', [41]);
 
 			expect(listener1).toHaveBeenCalled();
 			expect(listener1).toHaveBeenCalledWith(41);
@@ -69,8 +69,8 @@ describe("Bus", function(){
 			expect(listener2.calls[0].object).toEqual(context1);
 			expect(listener2.calls[1].object).toEqual(bus);
 
-			bus.off('change:her.monda.anal', listener2, context1);
-			bus.trigger('change:her.monda.anal.trololo.ololo', 41);
+			bus.off('change', 'foo.bar.baz', listener2, context1);
+			bus.trigger('change', 'foo.bar.baz.trololo.ololo', [41]);
 
 			expect(listener1.calls.length).toEqual(2);
 			expect(listener1.calls[1].object).toEqual(context1);
@@ -79,8 +79,8 @@ describe("Bus", function(){
 			expect(listener2.calls[2].object).toEqual(bus);
 
 
-			bus.off('change:her.monda.anal', null, context1);
-			bus.trigger('change:her.monda.anal.trololo.ololo', 42);
+			bus.off('change', 'foo.bar.baz', null, context1);
+			bus.trigger('change', 'foo.bar.baz.trololo.ololo', [42]);
 
 			expect(listener1.calls.length).toEqual(2);
 			expect(listener1.calls[1].object).toEqual(context1);
@@ -88,8 +88,8 @@ describe("Bus", function(){
 			expect(listener2.calls.length).toEqual(4);
 			expect(listener2.calls[3].object).toEqual(bus);
 
-			bus.off('change:her.monda.anal', listener2);
-			bus.trigger('change:her.monda.anal.trololo.ololo', 42);
+			bus.off('change', 'foo.bar.baz', listener2);
+			bus.trigger('change', 'foo.bar.baz.trololo.ololo', [42]);
 
 			expect(listener1.calls.length).toEqual(2);
 			expect(listener1.calls[1].object).toEqual(context1);
@@ -118,14 +118,10 @@ describe("Bus", function(){
 			set(obj, 'x', 41);
 			on(obj, 'change:a.b', function(value){console.log('a.b changed', value)});
 			on(obj, 'change:a.b.c.d', function(value){console.log('a.b.c.d changed', value)});
-			set(obj, 'a.b.c.d', 'her');
+			set(obj, 'a.b.c.d', 'foo');
 			set(obj, 'a', {b:{c:{d:32}}});
 
 			console.log(obj)
 		})
 	});
-//	it("should wrap an object", function(){
-//		var obj = {x:42, y:'gay'};
-//		var vented = Vent(obj)
-//	});
 });
